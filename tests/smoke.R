@@ -46,11 +46,11 @@ $ODE dxdt_CENT = -(CL / V) * CENT;
 $TABLE double cp = CENT / V;
 $CAPTURE cp
 ', soloc = work_dir)
-cpp_result <- as.data.frame(mrgsolve::mrgsim(
+cpp_result <- mrgsolve::mrgsim_df(
   mrgsolve::ev(cpp_model, amt = 100, cmt = 1),
   tgrid = times,
   obsonly = TRUE
-))
+)
 check(near(cpp_result$cp, expected), "mrgsolve matches closed-form concentration")
 
 synthetic_model <- function() {
