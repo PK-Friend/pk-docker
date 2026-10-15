@@ -1,7 +1,7 @@
 # pk-docker
 
 PK-Friend 서비스의 공통 Docker 빌드 이미지를 관리합니다.
-`Atflow-Corp/docker`의 이미지별 디렉터리와 로컬 `build.sh` 구성을 참고했습니다.
+`Atflow-Corp/docker`처럼 이미지별 `build.sh`에서 로컬 빌드와 GHCR 업로드를 수행합니다.
 
 ## TDM 의존성 이미지
 
@@ -34,6 +34,7 @@ PK-Friend 서비스의 공통 Docker 빌드 이미지를 관리합니다.
 ## 로컬 빌드와 검증
 
 Docker Buildx가 필요하며, Apple Silicon에서도 배포 대상인 `linux/amd64`로 빌드합니다.
+`CR_USER`와 `CR_PAT`가 없으면 로컬 빌드·검증만 수행합니다.
 
 ```bash
 bash tests/test-build.sh
@@ -43,29 +44,40 @@ bash tdm-build-base/build.sh
 ```
 
 `build.sh`는 `VERSION`에 적힌 태그로 로컬 이미지를 만든 뒤, 네트워크를 끈 컨테이너에서
-패키지 버전·로딩 및 합성 데이터 계산을 검사합니다. 로그인이나 업로드는 수행하지 않습니다.
+패키지 버전·로딩 및 합성 데이터 계산을 검사합니다. Docker 로컬 레이어 캐시를 재사용하므로
+설치 단계가 바뀌지 않으면 이후 빌드에서는 패키지를 다시 컴파일하지 않습니다.
 이 검사는 베이스 이미지의 기본 동작 검증이며, TDM 전체 회귀 테스트나 임상 검증을 대체하지 않습니다.
 
-## GHCR 발행
+## 로컬에서 GHCR 업로드
 
-PR과 `main` push는 빌드·검증만 합니다. `tdm-build-base/vX.Y.Z` 태그를 push하면
-같은 검증을 통과한 **동일 이미지**를 artifact로 전달해 GHCR에 업로드합니다.
-발행 단계에서는 다시 빌드하지 않습니다. 인증은 해당 저장소의 `GITHUB_TOKEN`과
-`packages: write` 권한을 사용하며 별도 PAT를 저장하지 않습니다.
+`gh` CLI와 패키지 읽기·쓰기 권한(`read:packages`, `write:packages`)이 있는 GitHub PAT가
+필요합니다. 기존 `Atflow-Corp/docker`와 동일하게 `CR_USER`, `CR_PAT`를 지정하면
+로컬에서 빌드·검증한 **동일 이미지**를 업로드합니다. 둘 중 하나만 설정하면 중단합니다.
 
 1. 패키지·OS 의존성 변경과 함께 `tdm-build-base/VERSION`을 올리고 PR을 병합합니다.
-2. 발행할 커밋에 `VERSION`과 일치하는 태그를 붙이고 그 태그 하나를 push합니다.
+2. 로컬에서 해당 커밋을 checkout하고 자격 증명을 설정한 뒤 `build.sh`를 실행합니다.
 
    ```bash
-   git tag tdm-build-base/v1.0.0
-   git push origin tdm-build-base/v1.0.0
+   export CR_USER=github-login
+   read -r -s -p 'GHCR token: ' CR_PAT
+   printf '\n'
+   export CR_PAT
+   bash tdm-build-base/build.sh
+   unset CR_PAT
    ```
 
-3. Actions의 `build`, `publish` 성공 및 GHCR 태그를 확인합니다.
+3. 로컬 명령의 성공 및 GHCR의 버전·`latest` 태그를 확인합니다.
+
+빌드 전에 인증 및 기존 버전을 확인하고, 수치 검증 성공 후 업로드 직전에 다시 확인합니다.
+로그인·조회·빌드·검증 중 하나라도 실패하면 이미지를 업로드하지 않습니다.
 
 이미 존재하는 버전 태그는 덮어쓰지 않습니다. `1.0.0` 같은 버전 태그와 `latest`를
 함께 발행하되, 과거 버전 발행이 `latest`를 이전 버전으로 되돌리지는 않습니다.
 동일 버전으로 재실행하면 발행을 거부하므로 수정은 새 버전으로 발행합니다.
+서로 다른 머신에서의 동시 발행은 직렬화하지 않으므로 발행 작업은 한 번에 하나씩 수행합니다.
+
+CI는 PR과 `main` push에서 Bash 문법·버전 형식·오프라인 스크립트 테스트만 실행합니다.
+Docker 이미지 빌드, 수치 모델 실행, GHCR 로그인·업로드 및 릴리스 태그 트리거는 없습니다.
 
 **첫 발행 후 GHCR 패키지의 visibility를 public으로 설정해야 합니다.** 공개 GitHub
 저장소라도 새 GHCR 패키지는 private일 수 있습니다. `pk-mono`는 GHCR 로그인 없이
@@ -80,7 +92,7 @@ rm -rf "$docker_config"
 
 ## pk-mono에서 사용
 
-첫 이미지를 발행하고 익명 pull을 확인한 뒤 소비 PR을 병합합니다. TDM에서는
+첫 이미지를 로컬에서 업로드하고 익명 pull을 확인한 뒤 소비 PR을 병합합니다. TDM에서는
 `latest` 대신 명시한 버전을 사용합니다.
 
 ```dockerfile

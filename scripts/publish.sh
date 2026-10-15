@@ -4,17 +4,22 @@ set -euo pipefail
 IMAGE=ghcr.io/pk-friend/pk-docker/tdm-build-base
 STABLE_VERSION='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
 
-if [[ $# -ne 2 || ! "$1" =~ $STABLE_VERSION || -z "$2" ]]; then
-  echo 'Usage: bash scripts/publish.sh X.Y.Z LOCAL_IMAGE (canonical numeric version required)' >&2
+check_only=false
+if [[ $# == 2 && "$1" == --check && "$2" =~ $STABLE_VERSION ]]; then
+  check_only=true
+  version=$2
+elif [[ $# == 2 && "$1" =~ $STABLE_VERSION && -n "$2" ]]; then
+  version=$1
+  local_image=$2
+else
+  echo 'Usage: bash scripts/publish.sh X.Y.Z LOCAL_IMAGE | --check X.Y.Z (canonical numeric version required)' >&2
   exit 1
 fi
-version=$1
-local_image=$2
 
 publish_tmp=$(mktemp -d)
 trap 'rm -rf -- "$publish_tmp"' EXIT
 
-# The workflow authenticates gh and Docker and serializes all publications.
+# build.sh authenticates gh and Docker. Run releases one at a time.
 if ! gh api --paginate 'orgs/PK-Friend/packages/container/pk-docker%2Ftdm-build-base/versions' \
     --jq '.[] | .metadata.container.tags[]' \
     > "$publish_tmp/tags" 2> "$publish_tmp/error"; then
@@ -37,6 +42,10 @@ while IFS= read -r existing || [[ -n "$existing" ]]; do
     printf '%s\n' "$existing" >> "$publish_tmp/stable-tags"
   fi
 done < "$publish_tmp/tags"
+if [[ "$check_only" == true ]]; then
+  echo "Version $version is available for publication."
+  exit 0
+fi
 newest=$(sort -V "$publish_tmp/stable-tags" | tail -n 1)
 
 docker tag "$local_image" "$IMAGE:$version"

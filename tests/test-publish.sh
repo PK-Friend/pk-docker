@@ -57,6 +57,8 @@ assert_calls() {
 }
 
 GH_SCENARIO=404 EXISTING_TAGS='' FAIL_VERSION_PUSH=0
+run_publisher success --check 1.0.0
+assert_calls ''
 run_publisher success 1.0.0 tdm-build-base:ci
 assert_calls "tag tdm-build-base:ci $IMAGE:1.0.0
 push $IMAGE:1.0.0
@@ -65,10 +67,14 @@ push $IMAGE:latest
 "
 
 GH_SCENARIO=success EXISTING_TAGS=$'latest\n1.0.0\n'
+run_publisher failure --check 1.0.0
+assert_calls ''
 run_publisher failure 1.0.0 tdm-build-base:ci
 assert_calls ''
 
 for GH_SCENARIO in 403 500 network; do
+  run_publisher failure --check 1.0.1
+  assert_calls ''
   run_publisher failure 1.0.1 tdm-build-base:ci
   assert_calls ''
 done
@@ -95,6 +101,9 @@ push $IMAGE:1.10.0
 
 FAIL_VERSION_PUSH=0
 for version in v1.0.0 01.0.0 1.0 1.0.0-dev latest; do
+  run_publisher failure --check "$version"
+  assert_calls ''
+  [[ ! -s "$GH_CALLS" ]]
   run_publisher failure "$version" tdm-build-base:ci
   assert_calls ''
   [[ ! -s "$GH_CALLS" ]]
