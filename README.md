@@ -5,7 +5,7 @@ TDM의 R 계산 패키지를 설치한 베이스 이미지를 로컬에서 빌�
 
 ## 빌드 및 업로드
 
-Docker Buildx와 `gh` CLI가 필요합니다.
+Docker Buildx와 [GitHub CLI (`gh`)](https://cli.github.com/)가 필요합니다.
 
 - `CR_USER`: GitHub ID
 - `CR_PAT`: [GitHub 안내에 따라 생성한 Personal access token (classic)](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens#creating-a-personal-access-token-classic). `read:packages`, `write:packages` 권한을 선택합니다.
