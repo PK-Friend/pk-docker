@@ -1,0 +1,6 @@
+*
+!Dockerfile
+!scripts/
+!scripts/install-apt-packages-with-retries.sh
+!scripts/install-numerical-packages.sh
+!scripts/numerical-packages.R
