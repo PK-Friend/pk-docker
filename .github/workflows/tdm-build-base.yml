@@ -1,0 +1,33 @@
+name: Check TDM build scripts
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check shell syntax and image version
+        shell: bash
+        run: |
+          set -euo pipefail
+          for script in tdm-build-base/build.sh tdm-build-base/scripts/*.sh scripts/publish.sh tests/*.sh; do
+            bash -n "$script"
+          done
+          version=$(cat tdm-build-base/VERSION)
+          if [[ ! "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo '::error::VERSION must be numeric X.Y.Z without leading zeros'
+            exit 1
+          fi
+      - name: Test local build, publishing, and APT retry behavior
+        run: |
+          bash tests/test-build.sh
+          bash tests/test-publish.sh
+          bash tests/test-install-apt-packages-with-retries.sh
